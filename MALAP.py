@@ -3,7 +3,9 @@ This is a Metropolis Adjusted Langevin Algorithm (MALA) proposal.
 Author:
     Ilias Bilionis
 """
-
+from __future__ import print_function
+from __future__ import absolute_import
+from __future__ import division
 
 __all__ = ['MALAProposal']
 
@@ -21,9 +23,9 @@ class MALAProposal(object):
 
     """
     A MALA proposal.
-    :param dt:      The time step. The larger you pick it, the bigger the steps
+    :param h:      The time step. The larger you pick it, the bigger the steps
                     you make and the acceptance rate will go down.
-    :type dt:       float
+    :type h:       float
 
     The rest of the keyword arguments is what you would find in:
         + :class:`pymcmc.GradProposal`
@@ -43,11 +45,6 @@ class MALAProposal(object):
         # if energy_grad is None:
         e_grad = grad(self.energy_fn)
         # force energy gradient to ignore cached results if using Autograd
-        # as otherwise gradient may be incorrectly calculated
-        # my_grad = lambda x, cache={}: e_grad(x)
-        # else:
-        #    my_energy_grad = energy_grad
-        # return my_grad(params)
         return e_grad(params)
 
 
@@ -56,16 +53,14 @@ class MALAProposal(object):
 
 
 class MetropolisHastings(MALAProposal):
-    '''
-    def __init__(self, model, proposal):
-        if proposal='MALA':
-            self.proposal = MALAProposal()
-    '''
-    def __init__(self, energy_fn, h=0.01):
-        super(MALAProposal, self).__init__()
-        self.energy_fn = energy_fn
-        self.h = h
-
+    def __init__(self, energy_fn, h=0.01, mhflag=True):
+        """
+        :param energy_fn:
+        :param h:
+        :param mhflag: bool, if use M-H adjustment
+        """
+        super(MetropolisHastings,self).__init__(energy_fn,h)
+        self.ifMH = mhflag
 
 
     # @property
@@ -76,11 +71,18 @@ class MetropolisHastings(MALAProposal):
         # print 'accept', self.accepted
         # print 'count', self.count
         accept_rate = self.accepted / self.count
-        print 'accept_rate', accept_rate
+        print('accept_rate', accept_rate)
         # return accept_rate
 
     def state_fn(self, x, z, grads_z):
-        return -self.energy_fn(z) - (LA.norm(x - z + self.h * grads_z))**2 / (4*self.h)
+        """
+        :param x: state x
+        :param z: state z
+        :param grads_z: gradient z
+        :return: log(pi(z)*P(z,x))
+        """
+
+        return -1.0*self.energy_fn(z) - (LA.norm(x - z + self.h * grads_z))**2 / (4*self.h)
 
     def sample(self, lazy_version, params_init, num_samples, num_thin=1, num_burn=0,
                init_model_state=None, init_proposal_state=None,
@@ -88,7 +90,8 @@ class MetropolisHastings(MALAProposal):
                tuning_frequency=1000,
                verbose=False):
         num_dim = params_init.shape[0]
-        all_samples = np.empty([(num_samples - num_burn)/num_thin,  num_dim])
+        # print(num_samples.dtype)
+        all_samples = np.empty([(num_samples - num_burn)//num_thin,  num_dim])
         # Initialize counters
         self.accepted = 0.
         self.count = 0.
@@ -98,19 +101,19 @@ class MetropolisHastings(MALAProposal):
         old_params = params_init
         old_grad_params = self.energy_grad_fn(old_params)
         # print 'old_grad_params', type(old_grad_params)
-        for i in xrange(num_samples):
+        for i in range(num_samples):
             if (not lazy_version) or (lazy_version and (np.random.uniform() < 0.5)):
                 # MCMC Step
                 new_params = self.proposal_sample(old_params, old_grad_params)
                 new_grad_params = self.energy_grad_fn(new_params)
-                ## accept or reject
+                ## Metropolis-Hasting
                 log_p_numerator = self.state_fn(old_params, new_params, new_grad_params)
                 log_p_denom = self.state_fn(new_params, old_params, old_grad_params)
                 # log_p_numerator = self.state_fn(new_params, old_params, new_grad_params)
                 # log_p_denom = self.state_fn(old_params, new_params, old_grad_params)
                 log_p = min(0.0, log_p_numerator - log_p_denom)
                 log_u = math.log(np.random.uniform())
-                if log_u <= log_p:
+                if log_u <= log_p or not self.ifMH:
                     old_params = new_params
                     old_grad_params = new_grad_params
                     self.accepted += 1
