@@ -9,14 +9,19 @@ from matplotlib.backends.backend_pdf import PdfPages
 from scipy.stats import norm
 import math
 
-NUM_CHAIN=10
+#fix the random seed
+NUM_CHAIN=100
+np.random.seed(42)
 
 def find_mix_time(samples, percentile, true_quantile, error_bound=0.1):
     '''
     find mix time.
     percentile: [0, 100]
     '''
-    for i in range(1, len(samples)):
+    for i in range(10, len(samples)):
+        #I think it is better to let the chain run for 10 steps then to
+        #decide if the chain is mixing. I don't think it makes sense
+        #that the first 5 steps already attain the staitonary distribution
         samples_sub = samples[:i]
         # print 'samples_sub', samples_sub
         emp_quantile = np.percentile(samples_sub, percentile)
@@ -35,7 +40,7 @@ def logGaussian(x):
 mixs = np.zeros([NUM_CHAIN])
 for myrun in range(NUM_CHAIN):
 
-    myMH = MetropolisHastings(energy_fn=logGaussian, h=0.35355339, mhflag=True)
+    myMH = MetropolisHastings(energy_fn=logGaussian, h=0.35355339, mhflag=False)
     init = np.random.multivariate_normal([0,0], [[1,0], [0,1]])
     mySamples = myMH.sample(lazy_version=True, params_init=init, num_samples=10000, num_thin=1, num_burn=0)
     myMH.acceptance_rate()
