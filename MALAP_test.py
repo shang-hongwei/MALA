@@ -2,7 +2,7 @@ from __future__ import print_function
 from __future__ import absolute_import
 from __future__ import division
 
-from MALAP import MetropolisHastings
+from MALAP import MALA, UnderdampedLangenvin
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
@@ -10,8 +10,11 @@ from scipy.stats import norm
 import math
 
 #fix the random seed
-NUM_CHAIN=100
+NUM_CHAIN=10
 np.random.seed(42)
+#Choose which sampler to use: 'MALA' or 'UDLG'
+sampler ='MALA'#'UDLG'
+
 
 def find_mix_time(samples, percentile, true_quantile, error_bound=0.1):
     '''
@@ -37,13 +40,24 @@ print('true_quantile', true_quantile)
 
 def logGaussian(x):
     return 0.5*((1.0/lambda_max)*x[0]**2 + 1.0*x[1]**2)  # + math.log(math.sqrt(2*3.1416)*math.sqrt(lambda_max)) + math.log(math.sqrt(2*3.1416)*math.sqrt(1.0))
-mixs = np.zeros([NUM_CHAIN])
-for myrun in range(NUM_CHAIN):
 
-    myMH = MetropolisHastings(energy_fn=logGaussian, h=0.35355339, mhflag=False)
-    init = np.random.multivariate_normal([0,0], [[1,0], [0,1]])
+
+mixs = np.zeros([NUM_CHAIN])
+
+
+
+for myrun in range(NUM_CHAIN):
+    if sampler == 'MALA':
+        myMH = MALA(energy_fn=logGaussian, h=0.35355339, mhflag=True)
+        init = np.random.multivariate_normal([0,0], [[1,0], [0,1]])
+    elif sampler == 'UDLG':
+        myMH = UnderdampedLangenvin(energy_fn=logGaussian, L=1.0, h=0.1, mhflag=True)
+        # init_pos = np.random.multivariate_normal([0,0], [[1,0], [0,1]])
+        init_pos = np.array([.0,.0])
+        init_vel = np.array([0.0,0.0])
+        init = (init_pos, init_vel)
     mySamples = myMH.sample(lazy_version=True, params_init=init, num_samples=10000, num_thin=1, num_burn=0)
-    myMH.acceptance_rate()
+    myMH.acceptance_rate
     # print 'accept_rate', accept_rate
     k_mix = find_mix_time(mySamples[:, 0], percentile, true_quantile, error_bound=0.1)
     # emp_quant = np.percentile(mySamples[:, 0], percentile)
