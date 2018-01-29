@@ -15,7 +15,6 @@ import numpy as np
 # from nlu import GradProposal
 # from nlu import SingleParameterTunableProposalConcept
 from numpy import linalg as LA
-import math
 from autograd import grad
 import abc
 from scipy.stats import multivariate_normal
@@ -177,7 +176,7 @@ class MALA(AbstractSampler):
                 # log_p_numerator = self.state_fn(new_params, old_params, new_grad_params)
                 # log_p_denom = self.state_fn(old_params, new_params, old_grad_params)
                 log_p = min(0.0, log_p_numerator - log_p_denom)
-                log_u = math.log(np.random.uniform())
+                log_u = np.log(np.random.uniform())
                 if log_u <= log_p or not self.ifMH:
                     old_params = new_params
                     old_grad_params = new_grad_params
@@ -230,7 +229,7 @@ class UnderdampedLangenvin(AbstractSampler):
         mean_v = np.exp(-2*self.h)*vel - 1.0/(2*self.L)*(1-np.exp(-2*self.h))*old_pos_grad_params
         mean_x = pos + 0.5*(1-np.exp(-2*self.h))*vel-1.0/(2*self.L)*(self.h-0.5*(1-np.exp(-2*self.h)))*old_pos_grad_params
         uleft = np.eye(len(pos))*1.0/self.L*(self.h - 0.25 * np.exp(-4*self.h)-0.75 + np.exp(-2*self.h))
-        uright = np.eye(len(vel))*1.0/(2*self.h)*(1+np.exp(-4*self.h)-2*np.exp(-2*self.h))
+        uright = np.eye(len(vel))*1.0/(2*self.L)*(1+np.exp(-4*self.h)-2*np.exp(-2*self.h))
         bright = np.eye(len(vel))*1.0/self.L * (1-np.exp(-4*self.h))
         cov = np.block([
             [uleft, uright],
@@ -252,20 +251,24 @@ class UnderdampedLangenvin(AbstractSampler):
         """
         pos_z, vel_z = z
         pos_x, vel_x = x
-        mean_v = np.exp(-2*self.h)*vel_z - 1.0/(2*self.L)*(1-np.exp(-2*self.h))*grads_z
-        mean_x = pos_z + 0.5*(1-np.exp(-2*self.h))*vel_z-1.0/(2*self.L)*(self.h-0.5*(1-np.exp(-2*self.h)))*grads_z
-        up_left = np.eye(len(pos_z))*1.0/self.L*(self.h - 0.25 * np.exp(-4*self.h)-0.75 + np.exp(-2*self.h))
-        up_right = np.eye(len(vel_z))*1.0/(2*self.L)*(1+np.exp(-4*self.h)-2*np.exp(-2*self.h))
-        bm_right = np.eye(len(vel_z))*1.0/self.L * (1-np.exp(-4*self.h))
+        mean_v = np.exp(-2 * self.h) * vel_z - 1.0/(2 * self.L) * (1-np.exp(-2 * self.h)) * grads_z
+        mean_x = pos_z + 0.5 * (1-np.exp(-2 * self.h)) * vel_z-1.0/(2 * self.L) \
+                 * (self.h-0.5 * (1-np.exp(-2 * self.h))) * grads_z
+        up_left = np.eye(len(pos_z)) * 1.0/self.L * (self.h - 0.25 * np.exp(-4 * self.h)-0.75 + np.exp(-2 * self.h))
+        up_right = np.eye(len(vel_z)) * 1.0/(2 * self.L) * (1+np.exp(-4 * self.h)-2 * np.exp(-2 * self.h))
+        bm_right = np.eye(len(vel_z)) * 1.0/self.L * (1-np.exp(-4 * self.h))
 
         cov = np.block([
             [up_left, up_right],
             [up_right, bm_right]
         ])
         log_p_zx = multivariate_normal.logpdf(np.concatenate([pos_x,vel_x]), mean=np.concatenate([mean_x,mean_v]),cov=cov)
-
-
         log_pi_z = -1.0*self.energy_fn(pos_z)-self.L/2.0*LA.norm(vel_z)**2
+        # if only consider pos variable
+        # log_pi_z = -1.0*self.energy_fn(pos_z)
+        # log_p_zx = multivariate_normal.logpdf(pos_x, mean=mean_x, cov=up_left)
+
+
         return log_pi_z + log_p_zx
 
 
@@ -298,7 +301,7 @@ class UnderdampedLangenvin(AbstractSampler):
                 # log_p_numerator = self.state_fn(new_params, old_params, new_grad_params)
                 # log_p_denom = self.state_fn(old_params, new_params, old_grad_params)
                 log_p = min(0.0, log_p_numerator - log_p_denom)
-                log_u = math.log(np.random.uniform())
+                log_u = np.log(np.random.uniform())
                 if log_u <= log_p or not self.ifMH:
                     old_params = new_params
                     old_grad_params = new_grad_params
